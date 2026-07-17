@@ -12,6 +12,7 @@ import phonenumbers
 from phonenumbers import carrier, geocoder, timezone
 import whois
 from pyfiglet import Figlet
+from datetime import datetime
 
 # ─── Colors ────────────────────────────────────────────────────────────────
 Bl = '\033[30m'
@@ -34,7 +35,6 @@ def banner():
     logo = fig.renderText("ALIEN TRACK").splitlines()
     print(f"{Wh}╔════════════════════════════════════════════════════════════════════╗")
     for line in logo:
-        # Pad each line to 66 chars (logo may have trailing spaces)
         line = line.rstrip('\n')
         if len(line) < 66:
             line = line.ljust(66)
@@ -51,6 +51,30 @@ def decorator_banner(func):
         banner()
         func(*args, **kwargs)
     return wrapper
+
+# ─── Helpers ──────────────────────────────────────────────────────────────
+def geocode_location(location_name):
+    """Return lat/lon for a location string using Nominatim."""
+    try:
+        url = "https://nominatim.openstreetmap.org/search"
+        params = {"q": location_name, "format": "json", "limit": 1}
+        headers = {"User-Agent": "Alien-Track/2.0"}
+        resp = requests.get(url, params=params, headers=headers, timeout=8)
+        if resp.status_code == 200 and resp.json():
+            data = resp.json()[0]
+            return data.get("lat"), data.get("lon")
+    except:
+        pass
+    return None, None
+
+def safe_format_date(date_val):
+    """Convert datetime object or list to readable string."""
+    if isinstance(date_val, list):
+        dates = [d.strftime("%Y-%m-%d") if isinstance(d, datetime) else str(d) for d in date_val]
+        return ", ".join(dates)
+    elif isinstance(date_val, datetime):
+        return date_val.strftime("%Y-%m-%d")
+    return str(date_val) if date_val else "N/A"
 
 # ─── Core Functions ────────────────────────────────────────────────────────
 
@@ -117,22 +141,41 @@ def phone_tracker():
         if not phonenumbers.is_valid_number(parsed):
             print(f"{Re}Invalid phone number.")
             return
+
         region_code = phonenumbers.region_code_for_number(parsed)
+        country_name = geocoder.country_name_for_number(parsed, "en") or region_code
+        location = geocoder.description_for_number(parsed, "en") or "N/A"
         provider = carrier.name_for_number(parsed, "en")
-        location = geocoder.description_for_number(parsed, "id")
         timezones = timezone.time_zones_for_number(parsed)
-        tz_str = ', '.join(timezones)
+        tz_str = ', '.join(timezones) if timezones else "N/A"
+        national = str(parsed.national_number)
+        area_code = national[:3] if len(national) >= 3 else "N/A"
+
+        # Get lat/lon from location
+        lat, lon = None, None
+        if location != "N/A":
+            lat, lon = geocode_location(location)
+            if not lat or not lon:
+                # fallback: geocode country if region not found
+                lat, lon = geocode_location(country_name)
+
         print(f"\n {Wh}========== {Gr}PHONE NUMBER DETAILS {Wh}==========")
-        print(f" {Wh}Location          :{Gr} {location}")
-        print(f" {Wh}Region Code       :{Gr} {region_code}")
+        print(f" {Wh}Country           :{Gr} {country_name}")
+        print(f" {Wh}Region/State      :{Gr} {location}")
+        print(f" {Wh}Area Code         :{Gr} {area_code}")
         print(f" {Wh}Timezone          :{Gr} {tz_str}")
-        print(f" {Wh}Carrier/Operator  :{Gr} {provider if provider else 'Unknown'}")
+        print(f" {Wh}Carrier/Operator  :{Gr} {provider if provider else 'Unknown (no data available)'}")
         print(f" {Wh}Valid number      :{Gr} {phonenumbers.is_valid_number(parsed)}")
         print(f" {Wh}Possible number   :{Gr} {phonenumbers.is_possible_number(parsed)}")
         print(f" {Wh}International fmt :{Gr} {phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.INTERNATIONAL)}")
         print(f" {Wh}E.164 format      :{Gr} {phonenumbers.format_number(parsed, phonenumbers.PhoneNumberFormat.E164)}")
         print(f" {Wh}National number   :{Gr} {parsed.national_number}")
         print(f" {Wh}Country code      :{Gr} {parsed.country_code}")
+        if lat and lon:
+            print(f" {Wh}Latitude          :{Gr} {lat}")
+            print(f" {Wh}Longitude         :{Gr} {lon}")
+            print(f" {Wh}Maps              :{Gr} https://www.google.com/maps/@{lat},{lon},8z")
+
         num_type = phonenumbers.number_type(parsed)
         if num_type == phonenumbers.PhoneNumberType.MOBILE:
             print(f" {Wh}Type              :{Gr} Wireless/Mobile")
@@ -146,13 +189,13 @@ def phone_tracker():
             print(f" {Wh}Type              :{Gr} Personal number")
         else:
             print(f" {Wh}Type              :{Gr} Other/Unknown")
+
     except Exception as e:
         print(f"{Re}Error: {e}")
 
 @decorator_banner
 def username_tracker():
     raw_input = input(f"\n{Wh}Enter username, email, or path to file (one per line): {Gr}").strip()
-    # Determine if it's a file
     if os.path.isfile(raw_input):
         with open(raw_input, 'r') as f:
             lines = [line.strip() for line in f if line.strip()]
@@ -161,13 +204,12 @@ def username_tracker():
             return
         print(f"\n{Wh}[{Gr}+{Wh}] Processing {len(lines)} entries...")
         for entry in lines:
-            process_single_username(entry)
+            process_single_username_live(entry)
         return
     else:
-        process_single_username(raw_input)
+        process_single_username_live(raw_input)
 
-def process_single_username(entry):
-    # If entry contains '@', treat as email -> use local part
+def process_single_username_live(entry):
     if '@' in entry:
         username = entry.split('@')[0]
         print(f"\n{Wh}▶ Checking email: {Gr}{entry}{Wh} → using username: {Gr}{username}")
@@ -223,32 +265,26 @@ def process_single_username(entry):
         ("Udemy", "https://www.udemy.com/user/{}"),
     ]
 
-    found = []
-    not_found = []
-
     def check_site(name, url_template):
         try:
             url = url_template.format(username)
             resp = requests.get(url, timeout=5, headers={"User-Agent": "Mozilla/5.0"}, allow_redirects=False)
-            if resp.status_code == 200:
-                found.append((name, url))
-            else:
-                not_found.append(name)
-        except:
-            not_found.append(name)
+            return name, url, resp.status_code
+        except Exception:
+            return name, url, None
 
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = [executor.submit(check_site, name, url) for name, url in sites]
-        for _ in as_completed(futures):
-            pass
-
-    if found:
-        for name, url in found:
-            print(f" {Wh}[{Gr}+{Wh}] {name} : {Gr}{url}")
-    else:
-        print(f"{Ye}No profiles found for '{username}'.")
-    if not_found:
-        print(f"\n{Wh}[{Ye}!{Wh}] {Ye}Could not find on: {', '.join(not_found[:5])}...")
+        for future in as_completed(futures):
+            name, url, status = future.result()
+            if status == 200:
+                print(f" {Wh}[{Gr}+{Wh}] {name} : {Gr}{url} {Wh}({Gr}FOUND{Wh})")
+            elif status == 404:
+                print(f" {Wh}[{Re}-{Wh}] {name} : {Re}{url} {Wh}({Re}NOT FOUND{Wh})")
+            else:
+                color = Ye if status is None else Re
+                msg = "ERROR" if status is None else f"HTTP {status}"
+                print(f" {Wh}[{color}!{Wh}] {name} : {color}{url} {Wh}({color}{msg}{Wh})")
 
 @decorator_banner
 def email_tracker():
@@ -260,28 +296,34 @@ def email_tracker():
             url = f"https://www.gravatar.com/avatar/{email_hash}?d=404&s=1"
             resp = requests.get(url, timeout=5, allow_redirects=False)
             if resp.status_code == 200:
-                return ("Gravatar", "Profile exists (has avatar)")
+                return ("Gravatar", f"{Gr}Profile exists (has avatar){Wh}")
             else:
-                return ("Gravatar", "No Gravatar found")
+                return ("Gravatar", f"{Ye}No Gravatar found{Wh}")
         except:
-            return ("Gravatar", "Check failed")
+            return ("Gravatar", f"{Re}Check failed{Wh}")
+
     def check_hibp():
         try:
             url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
-            resp = requests.get(url, timeout=10)
+            headers = {"User-Agent": "Alien-Track/2.0"}
+            resp = requests.get(url, timeout=10, headers=headers)
             if resp.status_code == 200:
                 data = resp.json()
                 breaches = [b['Name'] for b in data]
-                return ("HaveIBeenPwned", f"Found in {len(breaches)} breaches: {', '.join(breaches[:3])}")
+                return ("HaveIBeenPwned", f"{Re}Found in {len(breaches)} breaches: {', '.join(breaches[:3])}{Wh}")
             elif resp.status_code == 404:
-                return ("HaveIBeenPwned", "No breaches found")
+                return ("HaveIBeenPwned", f"{Gr}No breaches found{Wh}")
             else:
-                return ("HaveIBeenPwned", f"API error (status {resp.status_code})")
+                return ("HaveIBeenPwned", f"{Ye}API error (status {resp.status_code}){Wh}")
         except:
-            return ("HaveIBeenPwned", "Check failed")
+            return ("HaveIBeenPwned", f"{Re}Check failed{Wh}")
+
     def check_emailrep():
         try:
-            resp = requests.get(f"https://emailrep.io/{email}", timeout=10)
+            # Rate limit: sleep 1s to avoid 429
+            time.sleep(1)
+            url = f"https://emailrep.io/{email}"
+            resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
                 data = resp.json()
                 if data.get('status') == 'success':
@@ -294,24 +336,26 @@ def email_tracker():
                     last = details.get('last_seen', 'N/A')
                     return ("EmailRep", f"Reputation: {rep}, Suspicious: {susp}, Malicious: {mal}, Breaches: {breaches}, First: {first}, Last: {last}")
                 else:
-                    return ("EmailRep", "No data")
+                    return ("EmailRep", f"{Ye}No data{Wh}")
             else:
-                return ("EmailRep", f"API error (status {resp.status_code})")
+                return ("EmailRep", f"{Ye}API error (status {resp.status_code}){Wh}")
         except:
-            return ("EmailRep", "Check failed")
+            return ("EmailRep", f"{Re}Check failed{Wh}")
+
     def check_domain_whois():
         try:
             domain = email.split('@')[1]
             w = whois.whois(domain)
             if w:
-                created = w.creation_date
-                expiry = w.expiration_date
-                registrar = w.registrar
+                created = safe_format_date(w.creation_date)
+                expiry = safe_format_date(w.expiration_date)
+                registrar = w.registrar or "N/A"
                 return ("Domain WHOIS", f"Registrar: {registrar}, Created: {created}, Expires: {expiry}")
             else:
-                return ("Domain WHOIS", "No WHOIS data")
+                return ("Domain WHOIS", f"{Ye}No WHOIS data{Wh}")
         except:
-            return ("Domain WHOIS", "Check failed")
+            return ("Domain WHOIS", f"{Re}Check failed{Wh}")
+
     with ThreadPoolExecutor(max_workers=10) as executor:
         futures = [
             executor.submit(check_gravatar),
@@ -322,7 +366,7 @@ def email_tracker():
         for f in as_completed(futures):
             try:
                 service, info = f.result()
-                print(f" {Wh}[{Gr}+{Wh}] {service} : {Gr}{info}")
+                print(f" {Wh}[{Gr}+{Wh}] {service} : {info}")
             except:
                 print(f" {Wh}[{Re}!{Wh}] {Re}Error in one check")
     print()
@@ -332,19 +376,36 @@ def domain_whois():
     domain = input(f"\n{Wh}Enter domain (e.g., example.com) : {Gr}")
     print(f"\n {Wh}========== {Gr}WHOIS INFORMATION {Wh}==========")
     try:
-        w = whois.whois(domain)
-        if not w:
+        # First try the whois library with a timeout
+        try:
+            w = whois.whois(domain, timeout=10)
+        except Exception as e:
+            # If it fails due to DNS, try using socket to resolve first
+            try:
+                socket.getaddrinfo(domain, 80)
+            except:
+                print(f"{Re}Domain does not exist or DNS resolution failed.")
+                return
+            # Retry with whois library, sometimes the library fails on the first attempt
+            w = whois.whois(domain, timeout=10)
+
+        if not w or not w.domain_name:
             print(f"{Re}No WHOIS data found.")
             return
+
         print(f"{Wh}Domain Name      :{Gr} {w.domain_name}")
         print(f"{Wh}Registrar        :{Gr} {w.registrar}")
-        print(f"{Wh}Creation Date    :{Gr} {w.creation_date}")
-        print(f"{Wh}Expiration Date  :{Gr} {w.expiration_date}")
-        print(f"{Wh}Updated Date     :{Gr} {w.updated_date}")
-        print(f"{Wh}Name Servers     :{Gr} {', '.join(w.name_servers) if w.name_servers else 'N/A'}")
-        print(f"{Wh}Registrant       :{Gr} {w.registrant}")
-        print(f"{Wh}Admin Email      :{Gr} {w.emails}")
-        print(f"{Wh}Country          :{Gr} {w.country}")
+        print(f"{Wh}Creation Date    :{Gr} {safe_format_date(w.creation_date)}")
+        print(f"{Wh}Expiration Date  :{Gr} {safe_format_date(w.expiration_date)}")
+        print(f"{Wh}Updated Date     :{Gr} {safe_format_date(w.updated_date)}")
+        name_servers = w.name_servers
+        if isinstance(name_servers, list):
+            name_servers = ', '.join(name_servers)
+        print(f"{Wh}Name Servers     :{Gr} {name_servers or 'N/A'}")
+        print(f"{Wh}Registrant       :{Gr} {w.registrant or 'N/A'}")
+        print(f"{Wh}Admin Email      :{Gr} {w.emails or 'N/A'}")
+        print(f"{Wh}Country          :{Gr} {w.country or 'N/A'}")
+
     except Exception as e:
         print(f"{Re}WHOIS lookup failed: {e}")
 
