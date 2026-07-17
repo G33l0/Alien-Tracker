@@ -1,3 +1,4 @@
 requests
 phonenumbers
 python-whois
+pyfiglet
