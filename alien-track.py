@@ -11,7 +11,9 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 import phonenumbers
 from phonenumbers import carrier, geocoder, timezone
 import whois
+from pyfiglet import Figlet
 
+# ─── Colors ────────────────────────────────────────────────────────────────
 Bl = '\033[30m'
 Re = '\033[1;31m'
 Gr = '\033[1;32m'
@@ -22,29 +24,35 @@ Cy = '\033[1;36m'
 Wh = '\033[1;37m'
 Rs = '\033[0m'
 
+# ─── Banner ────────────────────────────────────────────────────────────────
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def banner():
     clear()
-    print(f"""{Wh}
-    ╔══════════════════════════════════════════════════════════════╗
-    ║  {Cy}   ___    _    ___  _   _  _____          {Wh}          ║
-    ║  {Cy}  / _ \\  / \\  |_ _|| \\ | ||_   _| {Wh}                 ║
-    ║  {Cy} | | | |/ _ \\  | | |  \\| |  | |   {Wh}                  ║
-    ║  {Cy} | |_| / ___ \\ | | | |\\  |  | |   {Wh}                  ║
-    ║  {Cy}  \\___/_/   \\_\\___||_| \\_|  |_|   {Wh}                  ║
-    ║                                                              ║
-    ║       {Gr}ALIEN - TRACK  •  OSINT  •  v2.0{Wh}               ║
-    ║          {Cy}CODED BY IamG2  •  @IamG2{Wh}                   ║
-    ╚══════════════════════════════════════════════════════════════╝
-    """)
+    fig = Figlet(font="slant")
+    logo = fig.renderText("ALIEN TRACK").splitlines()
+    print(f"{Wh}╔════════════════════════════════════════════════════════════════════╗")
+    for line in logo:
+        # Pad each line to 66 chars (logo may have trailing spaces)
+        line = line.rstrip('\n')
+        if len(line) < 66:
+            line = line.ljust(66)
+        else:
+            line = line[:66]
+        print(f"{Wh}║ {Cy}{line}{Wh}║")
+    print(f"{Wh}║{'':68}║")
+    print(f"{Wh}║      {Gr}OSINT Framework • v2.0{'':37}{Wh}║")
+    print(f"{Wh}║      {Cy}Author: IamG2{'':45}{Wh}║")
+    print(f"{Wh}╚════════════════════════════════════════════════════════════════════╝")
 
 def decorator_banner(func):
     def wrapper(*args, **kwargs):
         banner()
         func(*args, **kwargs)
     return wrapper
+
+# ─── Core Functions ────────────────────────────────────────────────────────
 
 @decorator_banner
 def ip_tracker():
@@ -143,8 +151,30 @@ def phone_tracker():
 
 @decorator_banner
 def username_tracker():
-    username = input(f"\n{Wh}Enter username : {Gr}")
-    print(f"\n {Wh}========== {Gr}SEARCHING SOCIAL MEDIA & PLATFORMS {Wh}==========\n")
+    raw_input = input(f"\n{Wh}Enter username, email, or path to file (one per line): {Gr}").strip()
+    # Determine if it's a file
+    if os.path.isfile(raw_input):
+        with open(raw_input, 'r') as f:
+            lines = [line.strip() for line in f if line.strip()]
+        if not lines:
+            print(f"{Re}File is empty.")
+            return
+        print(f"\n{Wh}[{Gr}+{Wh}] Processing {len(lines)} entries...")
+        for entry in lines:
+            process_single_username(entry)
+        return
+    else:
+        process_single_username(raw_input)
+
+def process_single_username(entry):
+    # If entry contains '@', treat as email -> use local part
+    if '@' in entry:
+        username = entry.split('@')[0]
+        print(f"\n{Wh}▶ Checking email: {Gr}{entry}{Wh} → using username: {Gr}{username}")
+    else:
+        username = entry
+        print(f"\n{Wh}▶ Checking username: {Gr}{username}")
+
     sites = [
         ("Facebook", "https://www.facebook.com/{}"),
         ("Twitter", "https://www.twitter.com/{}"),
@@ -192,8 +222,10 @@ def username_tracker():
         ("Coursera", "https://www.coursera.org/user/{}"),
         ("Udemy", "https://www.udemy.com/user/{}"),
     ]
+
     found = []
     not_found = []
+
     def check_site(name, url_template):
         try:
             url = url_template.format(username)
@@ -204,23 +236,24 @@ def username_tracker():
                 not_found.append(name)
         except:
             not_found.append(name)
+
     with ThreadPoolExecutor(max_workers=20) as executor:
         futures = [executor.submit(check_site, name, url) for name, url in sites]
         for _ in as_completed(futures):
             pass
+
     if found:
         for name, url in found:
             print(f" {Wh}[{Gr}+{Wh}] {name} : {Gr}{url}")
     else:
         print(f"{Ye}No profiles found for '{username}'.")
     if not_found:
-        print(f"\n{Wh}[{Ye}!{Wh}] {Ye}Could not find profiles on: {', '.join(not_found[:5])}...")
+        print(f"\n{Wh}[{Ye}!{Wh}] {Ye}Could not find on: {', '.join(not_found[:5])}...")
 
 @decorator_banner
 def email_tracker():
     email = input(f"\n{Wh}Enter email address : {Gr}")
     print(f"\n {Wh}========== {Gr}EMAIL INTELLIGENCE {Wh}==========\n")
-    tasks = []
     def check_gravatar():
         try:
             email_hash = hashlib.md5(email.strip().lower().encode()).hexdigest()
@@ -337,11 +370,13 @@ def port_scanner():
     except Exception as e:
         print(f"{Re}Error: {e}")
 
+# ─── Menu ──────────────────────────────────────────────────────────────────
+
 options = [
     {'num': 1, 'text': 'IP Tracker (Geo, ISP, VPN check)', 'func': ip_tracker},
     {'num': 2, 'text': 'Show My Public IP', 'func': show_my_ip},
     {'num': 3, 'text': 'Phone Number Tracker', 'func': phone_tracker},
-    {'num': 4, 'text': 'Username Tracker (45+ sites)', 'func': username_tracker},
+    {'num': 4, 'text': 'Username Tracker (45+ sites, supports file/email)', 'func': username_tracker},
     {'num': 5, 'text': 'Email Intelligence (Reputation + Breaches + WHOIS)', 'func': email_tracker},
     {'num': 6, 'text': 'Domain WHOIS Lookup', 'func': domain_whois},
     {'num': 7, 'text': 'Port Scanner (basic)', 'func': port_scanner},
@@ -379,12 +414,15 @@ def main():
             print(f"\n{Wh}[{Re}!{Wh}] Exiting...")
             sys.exit(0)
 
+# ─── Entry Point ──────────────────────────────────────────────────────────
+
 if __name__ == "__main__":
     try:
         import phonenumbers
         import whois
+        from pyfiglet import Figlet
     except ImportError as e:
         print(f"{Re}Missing dependency: {e}")
-        print(f"{Ye}Install: pip install phonenumbers python-whois requests")
+        print(f"{Ye}Install: pip install requests phonenumbers python-whois pyfiglet")
         sys.exit(1)
     main()
