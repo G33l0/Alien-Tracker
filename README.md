@@ -1,23 +1,33 @@
-🌐 Alien-Track
+# 🌐 Alien-Track
 
-Advanced OSINT Swiss Army Knife – IP, phone, username, email, domain, and port intelligence all in one tool.
-
-https://img.shields.io/badge/python-3.7+-blue.svg
-https://img.shields.io/badge/License-MIT-yellow.svg
-https://img.shields.io/badge/iSH-compatible-brightgreen.svg
+<p align="center">
+  <a href="https://www.python.org/downloads/">
+    <img src="https://img.shields.io/badge/python-3.7+-blue.svg" alt="Python 3.7+">
+  </a>
+  <a href="LICENSE">
+    <img src="https://img.shields.io/badge/License-MIT-yellow.svg" alt="License: MIT">
+  </a>
+  <a href="https://ish.app/">
+    <img src="https://img.shields.io/badge/iSH-compatible-brightgreen.svg" alt="iSH compatible">
+  </a>
+</p>
 
 ---
 
-🛸 Overview
+**Advanced OSINT Swiss Army Knife** – IP, phone, username, email, domain, and port intelligence all in one tool.
 
-Alien-Track is a powerful, banner‑style information gathering tool designed for security researchers, penetration testers, and OSINT enthusiasts. It combines multiple public APIs and built‑in techniques to quickly extract valuable data about:
+---
 
-· IP addresses (geolocation, ISP, proxy/VPN detection)
-· Phone numbers (carrier, location, type – wireless/landline/VoIP)
-· Usernames (across 45+ social media and coding platforms)
-· Email addresses (reputation, breach history, domain WHOIS)
-· Domains (full WHOIS records)
-· Ports (basic TCP scanning)
+## 🛸 Overview
+
+**Alien-Track** is a powerful, banner‑style information gathering tool designed for security researchers, penetration testers, and OSINT enthusiasts. It combines multiple public APIs and built‑in techniques to quickly extract valuable data about:
+
+- **IP addresses** (geolocation, ISP, proxy/VPN detection)
+- **Phone numbers** (carrier, location, type – wireless/landline/VoIP)
+- **Usernames** (across 45+ social media and coding platforms)
+- **Email addresses** (reputation, breach history, domain WHOIS)
+- **Domains** (full WHOIS records)
+- **Ports** (basic TCP scanning)
 
 All within an interactive, user‑friendly terminal interface.
 
