@@ -447,11 +447,11 @@ def port_scanner():
 # ─── Menu ──────────────────────────────────────────────────────────────────
 
 options = [
-    {'num': 1, 'text': 'IP Tracker (Geo, ISP, VPN check)', 'func': ip_tracker},
+    {'num': 1, 'text': 'IP Tracker', 'func': ip_tracker},
     {'num': 2, 'text': 'Show My Public IP', 'func': show_my_ip},
     {'num': 3, 'text': 'Phone Number Tracker', 'func': phone_tracker},
-    {'num': 4, 'text': 'Username Tracker (45+ sites, supports file/email)', 'func': username_tracker},
-    {'num': 5, 'text': 'Email Intelligence (Reputation + Breaches + WHOIS)', 'func': email_tracker},
+    {'num': 4, 'text': 'Username Tracker', 'func': username_tracker},
+    {'num': 5, 'text': 'Email Intelligence', 'func': email_tracker},
     {'num': 6, 'text': 'Domain WHOIS Lookup', 'func': domain_whois},
     {'num': 7, 'text': 'Port Scanner (basic)', 'func': port_scanner},
     {'num': 0, 'text': 'Exit', 'func': exit},
