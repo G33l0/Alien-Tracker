@@ -7,6 +7,7 @@ import os
 import sys
 import socket
 import hashlib
+import shutil
 from concurrent.futures import ThreadPoolExecutor, as_completed
 import phonenumbers
 from phonenumbers import carrier, geocoder, timezone
@@ -25,26 +26,43 @@ Cy = '\033[1;36m'
 Wh = '\033[1;37m'
 Rs = '\033[0m'
 
-# ─── Banner ────────────────────────────────────────────────────────────────
+# ─── Responsive Banner ────────────────────────────────────────────────────
 def clear():
     os.system('cls' if os.name == 'nt' else 'clear')
 
 def banner():
     clear()
-    fig = Figlet(font="slant")
+    term_width = shutil.get_terminal_size().columns
+    if term_width < 40:
+        term_width = 40   # minimum width to avoid breaking
+
+    # Render figlet with width = term_width - 4 (leaves 2 chars padding)
+    fig = Figlet(font="slant", width=term_width - 4)
     logo = fig.renderText("ALIEN TRACK").splitlines()
-    print(f"{Wh}╔════════════════════════════════════════════════════════════════════╗")
+
+    # Top border
+    print(f"{Wh}╔{'═' * (term_width - 2)}╗")
+
+    # Print each figlet line, centered or left‑aligned with padding
     for line in logo:
-        line = line.rstrip('\n')
-        if len(line) < 66:
-            line = line.ljust(66)
-        else:
-            line = line[:66]
-        print(f"{Wh}║ {Cy}{line}{Wh}║")
-    print(f"{Wh}║{'':68}║")
-    print(f"{Wh}║      {Gr}OSINT Framework • v2.0{'':37}{Wh}║")
-    print(f"{Wh}║      {Cy}Author: IamG2{'':45}{Wh}║")
-    print(f"{Wh}╚════════════════════════════════════════════════════════════════════╝")
+        if line.strip() == '':
+            continue
+        # Truncate if longer than available space
+        if len(line) > term_width - 4:
+            line = line[:term_width - 4]
+        print(f"{Wh}║ {Cy}{line.ljust(term_width - 4)}{Wh} ║")
+
+    # Blank line
+    print(f"{Wh}║{' ' * (term_width - 2)}║")
+
+    # Info lines – centered
+    info1 = f"      {Gr}OSINT Framework • v2.0"
+    info2 = f"      {Cy}Author: IamG2"
+    print(f"{Wh}║{info1.center(term_width - 2)}║")
+    print(f"{Wh}║{info2.center(term_width - 2)}║")
+
+    # Bottom border
+    print(f"{Wh}╚{'═' * (term_width - 2)}╝")
 
 def decorator_banner(func):
     def wrapper(*args, **kwargs):
@@ -54,7 +72,6 @@ def decorator_banner(func):
 
 # ─── Helpers ──────────────────────────────────────────────────────────────
 def geocode_location(location_name):
-    """Return lat/lon for a location string using Nominatim."""
     try:
         url = "https://nominatim.openstreetmap.org/search"
         params = {"q": location_name, "format": "json", "limit": 1}
@@ -68,11 +85,12 @@ def geocode_location(location_name):
     return None, None
 
 def safe_format_date(date_val):
-    """Convert datetime object or list to readable string."""
     if isinstance(date_val, list):
-        dates = [d.strftime("%Y-%m-%d") if isinstance(d, datetime) else str(d) for d in date_val]
-        return ", ".join(dates)
-    elif isinstance(date_val, datetime):
+        if date_val:
+            date_val = date_val[0]
+        else:
+            return "N/A"
+    if isinstance(date_val, datetime):
         return date_val.strftime("%Y-%m-%d")
     return str(date_val) if date_val else "N/A"
 
@@ -151,12 +169,10 @@ def phone_tracker():
         national = str(parsed.national_number)
         area_code = national[:3] if len(national) >= 3 else "N/A"
 
-        # Get lat/lon from location
         lat, lon = None, None
         if location != "N/A":
             lat, lon = geocode_location(location)
             if not lat or not lon:
-                # fallback: geocode country if region not found
                 lat, lon = geocode_location(country_name)
 
         print(f"\n {Wh}========== {Gr}PHONE NUMBER DETAILS {Wh}==========")
@@ -290,6 +306,7 @@ def process_single_username_live(entry):
 def email_tracker():
     email = input(f"\n{Wh}Enter email address : {Gr}")
     print(f"\n {Wh}========== {Gr}EMAIL INTELLIGENCE {Wh}==========\n")
+    
     def check_gravatar():
         try:
             email_hash = hashlib.md5(email.strip().lower().encode()).hexdigest()
@@ -304,7 +321,7 @@ def email_tracker():
 
     def check_hibp():
         try:
-            url = f"https://haveibeenpwned.com/api/v3/breachedaccount/{email}"
+            url = f"https://haveibeenpwned.com/api/v2/breachedaccount/{email}"
             headers = {"User-Agent": "Alien-Track/2.0"}
             resp = requests.get(url, timeout=10, headers=headers)
             if resp.status_code == 200:
@@ -315,13 +332,12 @@ def email_tracker():
                 return ("HaveIBeenPwned", f"{Gr}No breaches found{Wh}")
             else:
                 return ("HaveIBeenPwned", f"{Ye}API error (status {resp.status_code}){Wh}")
-        except:
-            return ("HaveIBeenPwned", f"{Re}Check failed{Wh}")
+        except Exception as e:
+            return ("HaveIBeenPwned", f"{Re}Check failed: {e}{Wh}")
 
     def check_emailrep():
         try:
-            # Rate limit: sleep 1s to avoid 429
-            time.sleep(1)
+            time.sleep(2)  # rate limit
             url = f"https://emailrep.io/{email}"
             resp = requests.get(url, timeout=10)
             if resp.status_code == 200:
@@ -376,17 +392,14 @@ def domain_whois():
     domain = input(f"\n{Wh}Enter domain (e.g., example.com) : {Gr}")
     print(f"\n {Wh}========== {Gr}WHOIS INFORMATION {Wh}==========")
     try:
-        # First try the whois library with a timeout
         try:
             w = whois.whois(domain, timeout=10)
-        except Exception as e:
-            # If it fails due to DNS, try using socket to resolve first
+        except Exception:
             try:
                 socket.getaddrinfo(domain, 80)
             except:
                 print(f"{Re}Domain does not exist or DNS resolution failed.")
                 return
-            # Retry with whois library, sometimes the library fails on the first attempt
             w = whois.whois(domain, timeout=10)
 
         if not w or not w.domain_name:
